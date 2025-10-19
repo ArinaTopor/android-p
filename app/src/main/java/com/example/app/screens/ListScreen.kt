@@ -24,7 +24,10 @@ import androidx.compose.material3.MaterialTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ListScreen(navController: NavController, viewModel: MainViewModel = androidx.lifecycle.viewmodel.compose.viewModel()) {
+fun ListScreen(
+    navController: NavController,
+    viewModel: MainViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+) {
     val moviesState = viewModel.movies.collectAsStateWithLifecycle()
     Scaffold(
         topBar = { TopAppBar(title = { Text("Список") }) }
@@ -45,14 +48,21 @@ fun ListScreen(navController: NavController, viewModel: MainViewModel = androidx
                     AsyncImage(
                         model = movie.poster?.previewUrl ?: movie.poster?.url,
                         contentDescription = movie.name,
-                        modifier = Modifier.size(64.dp).clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.surfaceVariant),
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
                         contentScale = ContentScale.Fit,
                         placeholder = painterResource(id = R.drawable.ic_movie_placeholder),
                         error = painterResource(id = R.drawable.ic_movie_placeholder)
                     )
                     Spacer(Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(movie.name, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                        Text(
+                            movie.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                         Spacer(Modifier.height(4.dp))
                         Text(
                             listOfNotNull(
@@ -66,7 +76,14 @@ fun ListScreen(navController: NavController, viewModel: MainViewModel = androidx
                     }
                     val rating = movie.rating?.kp ?: movie.rating?.imdb
                     if (rating != null) {
-                        AssistChip(onClick = {}, label = { Text(String.format("★ %.1f", rating)) }, colors = AssistChipDefaults.assistChipColors(containerColor = MaterialTheme.colorScheme.secondary, labelColor = MaterialTheme.colorScheme.onSecondary))
+                        AssistChip(
+                            onClick = {},
+                            label = { Text(String.format("★ %.1f", rating)) },
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = MaterialTheme.colorScheme.secondary,
+                                labelColor = MaterialTheme.colorScheme.onSecondary
+                            )
+                        )
                     }
                 }
             }

@@ -3,7 +3,6 @@ package com.example.app
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
@@ -32,7 +31,15 @@ fun MyApp() {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
-    val showBottomBar = currentRoute?.startsWith("detail") != true
+
+    val showBottomBar = when (currentRoute) {
+        "list" -> true
+        "favorites" -> true
+        "profile" -> true
+        "search" -> true
+        else -> false
+    }
+
     AppTheme {
         Scaffold(
             bottomBar = { if (showBottomBar) BottomNavBar(navController) }

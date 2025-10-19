@@ -12,7 +12,11 @@ fun Settings() {
     Scaffold(
         topBar = { TopAppBar(title = { Text("Настройки") }) }
     ) { padding ->
-        Column(modifier = Modifier.padding(padding).padding(16.dp)) {
+        Column(
+            modifier = Modifier
+                .padding(padding)
+                .padding(16.dp)
+        ) {
             Text("Тут будут настройки")
         }
     }

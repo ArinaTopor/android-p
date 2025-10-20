@@ -16,7 +16,9 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.app.ui.navigation.BottomNavBar
 import com.example.app.ui.navigation.NavGraph
 import com.example.app.ui.theme.AppTheme
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -34,9 +36,7 @@ fun MyApp() {
 
     val showBottomBar = when (currentRoute) {
         "list" -> true
-        "favorites" -> true
-        "profile" -> true
-        "search" -> true
+        "settings" -> true
         else -> false
     }
 

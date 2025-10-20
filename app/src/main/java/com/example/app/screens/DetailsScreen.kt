@@ -28,70 +28,99 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.app.viewmodels.CastMemberUi
 import com.example.app.viewmodels.MovieDetailsUiState
 import com.example.app.viewmodels.SimilarMovieUi
+import com.example.app.ui.state.MovieDetailUiState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DetailsScreen(
-    itemId: Int,
-    navController: NavController,
-    viewModel: MainViewModel = viewModel()
+    itemId: Int, navController: NavController, viewModel: MainViewModel = hiltViewModel()
 ) {
-    val uiState by viewModel.movieDetailsState.collectAsStateWithLifecycle()
+    val movieDetailUiState by viewModel.movieDetailUiState.collectAsStateWithLifecycle()
+    val movieDetailsState by viewModel.movieDetailsState.collectAsStateWithLifecycle()
 
     LaunchedEffect(itemId) {
-        viewModel.loadMovieDetails(itemId) { movieId ->
-            navController.navigate("detail/$movieId")
-        }
+        viewModel.loadMovieById(itemId)
     }
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(uiState.title) },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Назад")
+            TopAppBar(title = {
+                Text(
+                    when (val state = movieDetailUiState) {
+                        is MovieDetailUiState.Success -> state.movie.name
+                        else -> "Загрузка..."
+                    }
+                )
+            }, navigationIcon = {
+                IconButton(onClick = { navController.popBackStack() }) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Назад")
+                }
+            })
+        }) { padding ->
+        when (val state = movieDetailUiState) {
+            is MovieDetailUiState.Loading -> {
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
+
+            is MovieDetailUiState.Error -> {
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text(
+                            text = "Ошибка загрузки", style = MaterialTheme.typography.headlineSmall
+                        )
+                        Text(
+                            text = state.message,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Button(onClick = { viewModel.loadMovieById(itemId) }) {
+                            Text("Повторить")
+                        }
                     }
                 }
-            )
+            }
+
+            is MovieDetailUiState.Success -> {
+                MovieDetailsContent(
+                    uiState = movieDetailsState, modifier = Modifier.padding(padding)
+                )
+            }
         }
-    ) { padding ->
-        MovieDetailsContent(
-            uiState = uiState,
-            modifier = Modifier.padding(padding)
-        )
     }
 }
 
 @Composable
 private fun MovieDetailsContent(
-    uiState: MovieDetailsUiState,
-    modifier: Modifier = Modifier
+    uiState: MovieDetailsUiState, modifier: Modifier = Modifier
 ) {
     ConstraintLayout(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp)
+        modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState()).padding(16.dp)
     ) {
         val (posterRef, titleRef, metaRef, chipsRef, ratingRef, descRef, castRef, similarRef) = createRefs()
 
         Box(
-            modifier = Modifier
-                .height(240.dp)
-                .fillMaxWidth()
-                .clip(MaterialTheme.shapes.medium)
+            modifier = Modifier.height(240.dp).fillMaxWidth().clip(MaterialTheme.shapes.medium)
                 .constrainAs(posterRef) {
                     top.linkTo(parent.top)
                     start.linkTo(parent.start)
                     end.linkTo(parent.end)
-                }
-        ) {
+                }) {
             AsyncImage(
                 model = uiState.posterUrl,
                 contentDescription = uiState.title,
@@ -99,16 +128,12 @@ private fun MovieDetailsContent(
                 contentScale = ContentScale.Fit
             )
             Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .background(
+                modifier = Modifier.matchParentSize().background(
                         Brush.verticalGradient(
                             colors = listOf(
                                 Color.Transparent,
                                 MaterialTheme.colorScheme.background.copy(alpha = 0.9f)
-                            ),
-                            startY = 0f,
-                            endY = Float.POSITIVE_INFINITY
+                            ), startY = 0f, endY = Float.POSITIVE_INFINITY
                         )
                     )
             )
@@ -122,13 +147,11 @@ private fun MovieDetailsContent(
                 top.linkTo(posterRef.bottom, margin = 12.dp)
                 start.linkTo(parent.start)
                 end.linkTo(parent.end)
-            }
-        )
+            })
 
         val metaText = listOfNotNull(
             uiState.alternativeTitle.takeIf { it.isNotBlank() },
-            uiState.year.takeIf { it.isNotBlank() }
-        ).joinToString(" • ")
+            uiState.year.takeIf { it.isNotBlank() }).joinToString(" • ")
 
         if (metaText.isNotBlank()) {
             Text(
@@ -138,8 +161,7 @@ private fun MovieDetailsContent(
                 modifier = Modifier.constrainAs(metaRef) {
                     top.linkTo(titleRef.bottom, margin = 4.dp)
                     start.linkTo(parent.start)
-                }
-            )
+                })
         }
 
         Row(
@@ -147,8 +169,7 @@ private fun MovieDetailsContent(
             modifier = Modifier.constrainAs(chipsRef) {
                 top.linkTo(metaRef.bottom, margin = 8.dp)
                 start.linkTo(parent.start)
-            }
-        ) {
+            }) {
             if (uiState.ageRating.isNotBlank()) {
                 InfoChip(text = uiState.ageRating)
             }
@@ -171,8 +192,7 @@ private fun MovieDetailsContent(
                 modifier = Modifier.constrainAs(ratingRef) {
                     top.linkTo(chipsRef.bottom, margin = 8.dp)
                     start.linkTo(parent.start)
-                }
-            )
+                })
         }
 
         Text(
@@ -184,34 +204,28 @@ private fun MovieDetailsContent(
                 start.linkTo(parent.start)
                 end.linkTo(parent.end)
                 width = androidx.constraintlayout.compose.Dimension.fillToConstraints
-            }
-        )
+            })
 
         if (uiState.hasCast) {
             CastSection(
-                cast = uiState.cast,
-                modifier = Modifier.constrainAs(castRef) {
+                cast = uiState.cast, modifier = Modifier.constrainAs(castRef) {
                     top.linkTo(descRef.bottom, margin = 16.dp)
                     start.linkTo(parent.start)
                     end.linkTo(parent.end)
                     width = androidx.constraintlayout.compose.Dimension.fillToConstraints
-                }
-            )
+                })
         }
 
         if (uiState.hasSimilar) {
             SimilarMoviesSection(
-                similarMovies = uiState.similarMovies,
-                modifier = Modifier.constrainAs(similarRef) {
+                similarMovies = uiState.similarMovies, modifier = Modifier.constrainAs(similarRef) {
                     top.linkTo(
-                        if (uiState.hasCast) castRef.bottom else descRef.bottom,
-                        margin = 16.dp
+                        if (uiState.hasCast) castRef.bottom else descRef.bottom, margin = 16.dp
                     )
                     start.linkTo(parent.start)
                     end.linkTo(parent.end)
                     width = androidx.constraintlayout.compose.Dimension.fillToConstraints
-                }
-            )
+                })
         }
     }
 }
@@ -219,12 +233,10 @@ private fun MovieDetailsContent(
 @Composable
 private fun InfoChip(text: String) {
     AssistChip(
-        onClick = {},
-        label = { Text(text) },
-        colors = AssistChipDefaults.assistChipColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            labelColor = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        onClick = {}, label = { Text(text) }, colors = AssistChipDefaults.assistChipColors(
+        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+    )
     )
 }
 
@@ -245,9 +257,7 @@ private fun CastSection(cast: List<CastMemberUi>, modifier: Modifier = Modifier)
                     AsyncImage(
                         model = castMember.photoUrl,
                         contentDescription = castMember.name,
-                        modifier = Modifier
-                            .size(64.dp)
-                            .clip(CircleShape),
+                        modifier = Modifier.size(64.dp).clip(CircleShape),
                         placeholder = painterResource(id = R.drawable.ic_movie_placeholder),
                         error = painterResource(id = R.drawable.ic_movie_placeholder)
                     )
@@ -261,8 +271,7 @@ private fun CastSection(cast: List<CastMemberUi>, modifier: Modifier = Modifier)
 
 @Composable
 private fun SimilarMoviesSection(
-    similarMovies: List<SimilarMovieUi>,
-    modifier: Modifier = Modifier
+    similarMovies: List<SimilarMovieUi>, modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
         Text(
@@ -273,8 +282,7 @@ private fun SimilarMoviesSection(
         Spacer(Modifier.height(8.dp))
         similarMovies.forEach { similarMovie ->
             SimilarMovieItem(
-                similarMovie = similarMovie,
-                modifier = Modifier.fillMaxWidth()
+                similarMovie = similarMovie, modifier = Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(8.dp))
         }
@@ -284,19 +292,14 @@ private fun SimilarMoviesSection(
 @Composable
 private fun SimilarMovieItem(similarMovie: SimilarMovieUi, modifier: Modifier = Modifier) {
     Row(
-        modifier = modifier
-            .clip(MaterialTheme.shapes.small)
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(8.dp)
-            .clickable { similarMovie.onClick() },
-        verticalAlignment = Alignment.CenterVertically
+        modifier = modifier.clip(MaterialTheme.shapes.small)
+            .background(MaterialTheme.colorScheme.surface).padding(8.dp)
+            .clickable { similarMovie.onClick() }, verticalAlignment = Alignment.CenterVertically
     ) {
         AsyncImage(
             model = similarMovie.posterUrl,
             contentDescription = similarMovie.name,
-            modifier = Modifier
-                .size(56.dp)
-                .clip(MaterialTheme.shapes.small),
+            modifier = Modifier.size(56.dp).clip(MaterialTheme.shapes.small),
             contentScale = ContentScale.Crop,
             placeholder = painterResource(id = R.drawable.ic_movie_placeholder),
             error = painterResource(id = R.drawable.ic_movie_placeholder)
@@ -310,8 +313,7 @@ private fun SimilarMovieItem(similarMovie: SimilarMovieUi, modifier: Modifier = 
             )
             val meta = listOfNotNull(
                 similarMovie.alternativeName.takeIf { it.isNotBlank() },
-                similarMovie.year.takeIf { it.isNotBlank() }
-            ).joinToString(" • ")
+                similarMovie.year.takeIf { it.isNotBlank() }).joinToString(" • ")
             if (meta.isNotBlank()) {
                 Text(
                     meta,

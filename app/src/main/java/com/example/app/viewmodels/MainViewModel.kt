@@ -1,13 +1,21 @@
 package com.example.app.viewmodels
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.example.app.data.Movie
 import com.example.app.data.Rating
-import com.example.app.data.repository.SampleMoviesRepository
+import com.example.app.domain.usecase.GetMoviesUseCase
+import com.example.app.domain.usecase.GetMovieByIdUseCase
+import com.example.app.domain.usecase.SearchMoviesUseCase
+import com.example.app.ui.state.MovieUiState
+import com.example.app.ui.state.MovieDetailUiState
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 data class MovieDetailsUiState(
     val movie: Movie? = null,
@@ -43,26 +51,91 @@ data class SimilarMovieUi(
     val onClick: () -> Unit
 )
 
-class MainViewModel : ViewModel() {
-    private val _movies = MutableStateFlow(SampleMoviesRepository.movies)
-    val movies: StateFlow<List<Movie>> = _movies.asStateFlow()
+@HiltViewModel
+class MainViewModel @Inject constructor(
+    private val getMoviesUseCase: GetMoviesUseCase,
+    private val getMovieByIdUseCase: GetMovieByIdUseCase,
+    private val searchMoviesUseCase: SearchMoviesUseCase
+) : ViewModel() {
+    
+    private val _moviesUiState = MutableStateFlow<MovieUiState>(MovieUiState.Loading)
+    val moviesUiState: StateFlow<MovieUiState> = _moviesUiState.asStateFlow()
+
+    private val _movieDetailUiState = MutableStateFlow<MovieDetailUiState>(MovieDetailUiState.Loading)
+    val movieDetailUiState: StateFlow<MovieDetailUiState> = _movieDetailUiState.asStateFlow()
 
     private val _movieDetailsState = MutableStateFlow(MovieDetailsUiState())
     val movieDetailsState: StateFlow<MovieDetailsUiState> = _movieDetailsState.asStateFlow()
+    
+    // Для обратной совместимости с существующим UI
+    val movies: StateFlow<List<Movie>> = _moviesUiState.asStateFlow().let { stateFlow ->
+        MutableStateFlow<List<Movie>>(emptyList()).apply {
+            viewModelScope.launch {
+                stateFlow.collect { state ->
+                    when (state) {
+                        is MovieUiState.Success -> value = state.movies
+                        else -> value = emptyList()
+                    }
+                }
+            }
+        }.asStateFlow()
+    }
 
-    fun loadMovieDetails(movieId: Int, onMovieClick: (Int) -> Unit) {
-        val movie = _movies.value.find { it.id == movieId }
-
-        _movieDetailsState.update {
-            prepareMovieDetailsUiState(movie, onMovieClick)
+    fun loadMovies() {
+        viewModelScope.launch {
+            _moviesUiState.value = MovieUiState.Loading
+            getMoviesUseCase().fold(
+                onSuccess = { movies ->
+                    _moviesUiState.value = MovieUiState.Success(movies)
+                },
+                onFailure = { error ->
+                    _moviesUiState.value = MovieUiState.Error(error.message ?: "Неизвестная ошибка")
+                }
+            )
+        }
+    }
+    
+    fun loadMovieById(movieId: Int) {
+        viewModelScope.launch {
+            _movieDetailUiState.value = MovieDetailUiState.Loading
+            getMovieByIdUseCase(movieId).fold(
+                onSuccess = { movie ->
+                    _movieDetailUiState.value = MovieDetailUiState.Success(movie)
+                    _movieDetailsState.update {
+                        prepareMovieDetailsUiState(movie) { id ->
+                            loadMovieById(id)
+                        }
+                    }
+                },
+                onFailure = { error ->
+                    _movieDetailUiState.value = MovieDetailUiState.Error(error.message ?: "Неизвестная ошибка")
+                }
+            )
+        }
+    }
+    
+    fun searchMovies(query: String) {
+        viewModelScope.launch {
+            _moviesUiState.value = MovieUiState.Loading
+            searchMoviesUseCase(query).fold(
+                onSuccess = { movies ->
+                    _moviesUiState.value = MovieUiState.Success(movies)
+                },
+                onFailure = { error ->
+                    _moviesUiState.value = MovieUiState.Error(error.message ?: "Ошибка поиска")
+                }
+            )
         }
     }
 
+    fun loadMovieDetails(movieId: Int, onMovieClick: (Int) -> Unit) {
+        loadMovieById(movieId)
+    }
+
     private fun prepareMovieDetailsUiState(
-        movie: Movie?,
+        movie: Movie,
         onMovieClick: (Int) -> Unit
     ): MovieDetailsUiState {
-        if (movie == null) return MovieDetailsUiState()
 
         val ratingValue = movie.rating?.kp ?: movie.rating?.imdb
         val ratingText = if (ratingValue != null) String.format("%.1f", ratingValue) else ""
@@ -72,7 +145,7 @@ class MainViewModel : ViewModel() {
         val castMembers = movie.persons.take(10).map { person ->
             CastMemberUi(
                 id = person.id,
-                name = person.name,
+                name = person.name ?: "Актер",
                 photoUrl = person.photo
             )
         }
@@ -102,7 +175,10 @@ class MainViewModel : ViewModel() {
         movie: Movie,
         onMovieClick: (Int) -> Unit
     ): List<SimilarMovieUi> {
-        val allMovies = _movies.value
+        val allMovies = when (val state = _moviesUiState.value) {
+            is MovieUiState.Success -> state.movies
+            else -> emptyList()
+        }
 
         val fromModel = movie.similarMovies.mapNotNull { similarMovie ->
             allMovies.find { it.id == similarMovie.id }?.let { foundMovie ->

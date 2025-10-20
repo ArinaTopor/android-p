@@ -17,7 +17,7 @@ data class Poster(
 data class Person(
     val id: Int,
     val photo: String?,
-    val name: String,
+    val name: String?,
     val enName: String?
 )
 

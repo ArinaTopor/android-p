@@ -7,6 +7,9 @@ import com.example.app.data.Rating
 import com.example.app.domain.usecase.GetMoviesUseCase
 import com.example.app.domain.usecase.GetMovieByIdUseCase
 import com.example.app.domain.usecase.SearchMoviesUseCase
+import com.example.app.data.repository.FilterRepository
+import com.example.app.data.repository.FilterSettings
+import com.example.app.data.local.FilterCache
 import com.example.app.ui.state.MovieUiState
 import com.example.app.ui.state.MovieDetailUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -14,6 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -55,37 +59,43 @@ data class SimilarMovieUi(
 class MainViewModel @Inject constructor(
     private val getMoviesUseCase: GetMoviesUseCase,
     private val getMovieByIdUseCase: GetMovieByIdUseCase,
-    private val searchMoviesUseCase: SearchMoviesUseCase
+    private val searchMoviesUseCase: SearchMoviesUseCase,
+    private val filterRepository: FilterRepository,
+    private val filterCache: FilterCache
 ) : ViewModel() {
-    
+
     private val _moviesUiState = MutableStateFlow<MovieUiState>(MovieUiState.Loading)
     val moviesUiState: StateFlow<MovieUiState> = _moviesUiState.asStateFlow()
-
-    private val _movieDetailUiState = MutableStateFlow<MovieDetailUiState>(MovieDetailUiState.Loading)
+    private val _movieDetailUiState =
+        MutableStateFlow<MovieDetailUiState>(MovieDetailUiState.Loading)
     val movieDetailUiState: StateFlow<MovieDetailUiState> = _movieDetailUiState.asStateFlow()
-
     private val _movieDetailsState = MutableStateFlow(MovieDetailsUiState())
     val movieDetailsState: StateFlow<MovieDetailsUiState> = _movieDetailsState.asStateFlow()
-    
-    // Для обратной совместимости с существующим UI
-    val movies: StateFlow<List<Movie>> = _moviesUiState.asStateFlow().let { stateFlow ->
-        MutableStateFlow<List<Movie>>(emptyList()).apply {
-            viewModelScope.launch {
-                stateFlow.collect { state ->
-                    when (state) {
-                        is MovieUiState.Success -> value = state.movies
-                        else -> value = emptyList()
-                    }
-                }
+    private val _allMovies = MutableStateFlow<List<Movie>>(emptyList())
+    private val _filteredMovies = MutableStateFlow<List<Movie>>(emptyList())
+
+    init {
+        viewModelScope.launch {
+            combine(
+                _allMovies,
+                filterRepository.filterSettings
+            ) { movies, filters ->
+                applyFilters(movies, filters)
+            }.collect { filteredMovies ->
+                _filteredMovies.value = filteredMovies
             }
-        }.asStateFlow()
+        }
     }
+
+    val movies: StateFlow<List<Movie>> = _filteredMovies.asStateFlow()
+    val hasActiveFilters: StateFlow<Boolean> = filterCache.hasActiveFilters
 
     fun loadMovies() {
         viewModelScope.launch {
             _moviesUiState.value = MovieUiState.Loading
             getMoviesUseCase().fold(
                 onSuccess = { movies ->
+                    _allMovies.value = movies
                     _moviesUiState.value = MovieUiState.Success(movies)
                 },
                 onFailure = { error ->
@@ -94,7 +104,7 @@ class MainViewModel @Inject constructor(
             )
         }
     }
-    
+
     fun loadMovieById(movieId: Int) {
         viewModelScope.launch {
             _movieDetailUiState.value = MovieDetailUiState.Loading
@@ -108,17 +118,19 @@ class MainViewModel @Inject constructor(
                     }
                 },
                 onFailure = { error ->
-                    _movieDetailUiState.value = MovieDetailUiState.Error(error.message ?: "Неизвестная ошибка")
+                    _movieDetailUiState.value =
+                        MovieDetailUiState.Error(error.message ?: "Неизвестная ошибка")
                 }
             )
         }
     }
-    
+
     fun searchMovies(query: String) {
         viewModelScope.launch {
             _moviesUiState.value = MovieUiState.Loading
             searchMoviesUseCase(query).fold(
                 onSuccess = { movies ->
+                    _allMovies.value = movies
                     _moviesUiState.value = MovieUiState.Success(movies)
                 },
                 onFailure = { error ->
@@ -175,10 +187,7 @@ class MainViewModel @Inject constructor(
         movie: Movie,
         onMovieClick: (Int) -> Unit
     ): List<SimilarMovieUi> {
-        val allMovies = when (val state = _moviesUiState.value) {
-            is MovieUiState.Success -> state.movies
-            else -> emptyList()
-        }
+        val allMovies = _allMovies.value
 
         val fromModel = movie.similarMovies.mapNotNull { similarMovie ->
             allMovies.find { it.id == similarMovie.id }?.let { foundMovie ->
@@ -232,5 +241,24 @@ class MainViewModel @Inject constructor(
     private fun prepareRatingText(rating: Rating?): String {
         val value = rating?.kp ?: rating?.imdb
         return if (value != null) String.format("★ %.1f", value) else ""
+    }
+
+    private fun applyFilters(movies: List<Movie>, filterSettings: FilterSettings): List<Movie> {
+        return movies.filter { movie ->
+            val genreMatch = filterSettings.genre.isEmpty() ||
+                    movie.genres.any { genre ->
+                        genre.name.contains(filterSettings.genre, ignoreCase = true)
+                    }
+
+            val ratingValue = movie.rating?.kp ?: movie.rating?.imdb
+            val ratingMatch = filterSettings.minRating <= 0f ||
+                    (ratingValue != null && ratingValue >= filterSettings.minRating)
+
+            val nameMatch = filterSettings.query.isEmpty() ||
+                    movie.name.contains(filterSettings.query, ignoreCase = true) ||
+                    movie.alternativeName?.contains(filterSettings.query, ignoreCase = true) == true
+
+            genreMatch && ratingMatch && nameMatch
+        }
     }
 }

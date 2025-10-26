@@ -22,7 +22,7 @@ class MovieRepository @Inject constructor(
     private var cachedMovies: List<Movie>? = null
     private var cachedMovieDetails: MutableMap<Int, Movie> = mutableMapOf()
     
-    suspend fun getMovies(page: Int = 1, limit: Int = 10): Result<List<Movie>> {
+    suspend fun getMovies(page: Int = 1, limit: Int = 25): Result<List<Movie>> {
         return withContext(Dispatchers.IO) {
             try {
                 val response = api.getMovies(

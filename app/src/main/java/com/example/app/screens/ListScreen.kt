@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -38,6 +39,8 @@ fun ListScreen(
 ) {
     var searchQuery by remember { mutableStateOf("") }
     val moviesUiState = viewModel.moviesUiState.collectAsStateWithLifecycle()
+    val filteredMovies by viewModel.movies.collectAsStateWithLifecycle()
+    val hasActiveFilters by viewModel.hasActiveFilters.collectAsStateWithLifecycle()
     val keyboardController = LocalSoftwareKeyboardController.current
 
     LaunchedEffect(Unit) {
@@ -45,7 +48,30 @@ fun ListScreen(
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Фильмы") }) }
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text("Фильмы")
+                },
+                actions = {
+                    BadgedBox(
+                        badge = {
+                            if (hasActiveFilters) {
+                                Badge(
+                                    containerColor = MaterialTheme.colorScheme.error
+                                ) {
+                                    Text("1")
+                                }
+                            }
+                        }
+                    ) {
+                        IconButton(onClick = { navController.navigate("settings") }) {
+                            Icon(Icons.Default.Settings, contentDescription = "Настройки")
+                        }
+                    }
+                }
+            )
+        }
     ) { padding ->
         Column(
             modifier = Modifier
@@ -118,7 +144,7 @@ fun ListScreen(
                 }
 
                 is MovieUiState.Success -> {
-                    if (state.movies.isEmpty()) {
+                    if (filteredMovies.isEmpty()) {
                         Box(
                             modifier = Modifier.fillMaxWidth(),
                             contentAlignment = Alignment.Center
@@ -133,7 +159,7 @@ fun ListScreen(
                         LazyColumn(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            items(state.movies) { movie ->
+                            items(filteredMovies) { movie ->
                                 val shape = RoundedCornerShape(12.dp)
                                 Row(
                                     modifier = Modifier

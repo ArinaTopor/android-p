@@ -32,9 +32,11 @@ fun MyApp() {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
 
-    val showBottomBar = when (currentRoute) {
-        "list" -> true
-        "favorites" -> true
+    val showBottomBar = when {
+        currentRoute == null -> false
+        currentRoute.startsWith("list") -> true
+        currentRoute.startsWith("favorites") -> true
+        currentRoute.startsWith("profile") && currentRoute == "profile" -> true
         else -> false
     }
 

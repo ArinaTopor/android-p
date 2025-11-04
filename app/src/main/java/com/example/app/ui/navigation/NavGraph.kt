@@ -8,6 +8,7 @@ import com.example.app.screens.DetailsScreen
 import com.example.app.screens.Settings
 import com.example.app.ui.navigation.Screen
 import com.example.app.screens.ListScreen
+import com.example.app.screens.FavoritesScreen
 
 @Composable
 fun NavGraph(navController: NavHostController) {
@@ -17,6 +18,7 @@ fun NavGraph(navController: NavHostController) {
             val id = backStackEntry.arguments?.getString("itemId")?.toIntOrNull() ?: 0
             DetailsScreen(itemId = id, navController = navController)
         }
-        composable(Screen.Settings.route) { Settings() }
+        composable(Screen.Settings.route) { Settings(navController) }
+        composable(Screen.Favorites.route) { FavoritesScreen(navController) }
     }
 }

@@ -5,9 +5,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -15,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.app.viewmodels.MainViewModel
+import com.example.app.viewmodels.FavoritesViewModel
 import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -26,7 +33,6 @@ import androidx.compose.ui.res.painterResource
 import com.example.app.R
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.app.viewmodels.CastMemberUi
@@ -37,29 +43,61 @@ import com.example.app.ui.state.MovieDetailUiState
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DetailsScreen(
-    itemId: Int, navController: NavController, viewModel: MainViewModel = hiltViewModel()
+    itemId: Int, navController: NavController, 
+    viewModel: MainViewModel = hiltViewModel(),
+    favoritesViewModel: FavoritesViewModel = hiltViewModel()
 ) {
     val movieDetailUiState by viewModel.movieDetailUiState.collectAsStateWithLifecycle()
     val movieDetailsState by viewModel.movieDetailsState.collectAsStateWithLifecycle()
+    var isFavorite by remember { mutableStateOf(false) }
 
     LaunchedEffect(itemId) {
         viewModel.loadMovieById(itemId)
     }
 
+    LaunchedEffect(movieDetailUiState) {
+        if (movieDetailUiState is MovieDetailUiState.Success) {
+            val movie = (movieDetailUiState as MovieDetailUiState.Success).movie
+            favoritesViewModel.isFavorite(movie.id) { favorite ->
+                isFavorite = favorite
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
-            TopAppBar(title = {
-                Text(
-                    when (val state = movieDetailUiState) {
-                        is MovieDetailUiState.Success -> state.movie.name
-                        else -> "Загрузка..."
+            TopAppBar(
+                title = {
+                    Text(
+                        when (val state = movieDetailUiState) {
+                            is MovieDetailUiState.Success -> state.movie.name
+                            else -> "Загрузка..."
+                        }
+                    )
+                }, 
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Назад")
                     }
-                )
-            }, navigationIcon = {
-                IconButton(onClick = { navController.popBackStack() }) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Назад")
+                },
+                actions = {
+                    if (movieDetailUiState is MovieDetailUiState.Success) {
+                        IconButton(onClick = {
+                            val movie = (movieDetailUiState as MovieDetailUiState.Success).movie
+                            isFavorite = !isFavorite
+                            favoritesViewModel.toggleFavorite(movie) { newState ->
+                                isFavorite = newState
+                            }
+                        }) {
+                            Icon(
+                                if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                contentDescription = "Избранное",
+                                tint = if (isFavorite) Color.Red else Color.Black
+                            )
+                        }
+                    }
                 }
-            })
+            )
         }) { padding ->
         when (val state = movieDetailUiState) {
             is MovieDetailUiState.Loading -> {

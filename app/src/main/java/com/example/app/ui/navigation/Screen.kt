@@ -4,6 +4,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.ui.graphics.vector.ImageVector
 
 sealed class Screen(
@@ -34,5 +35,16 @@ sealed class Screen(
         title = "Избранное",
         icon = Icons.Filled.Favorite,
         baseRoute = "favorites"
+    )
+    object Profile : Screen(
+        route = "profile",
+        title = "Профиль",
+        icon = Icons.Filled.Person,
+        baseRoute = "profile"
+    )
+    object EditProfile : Screen(
+        route = "profile/edit",
+        title = "Редактировать профиль",
+        baseRoute = "profile/edit"
     )
 }

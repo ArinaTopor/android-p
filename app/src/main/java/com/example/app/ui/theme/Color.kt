@@ -2,7 +2,7 @@ package com.example.app.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val BrandRed = Color(0xFFFF0A16)
+val BrandRed = Color(0xFF282425)
 val BrandOrange = Color(0xFFFF7A00)
 val DarkBackground = Color(0xFF0B0B0B)
 val DarkSurface = Color(0xFF121212)

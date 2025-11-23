@@ -9,6 +9,8 @@ import com.example.app.screens.Settings
 import com.example.app.ui.navigation.Screen
 import com.example.app.screens.ListScreen
 import com.example.app.screens.FavoritesScreen
+import com.example.app.screens.ProfileScreen
+import com.example.app.screens.EditProfileScreen
 
 @Composable
 fun NavGraph(navController: NavHostController) {
@@ -20,5 +22,7 @@ fun NavGraph(navController: NavHostController) {
         }
         composable(Screen.Settings.route) { Settings(navController) }
         composable(Screen.Favorites.route) { FavoritesScreen(navController) }
+        composable(Screen.Profile.route) { ProfileScreen(navController) }
+        composable(Screen.EditProfile.route) { EditProfileScreen(navController) }
     }
 }

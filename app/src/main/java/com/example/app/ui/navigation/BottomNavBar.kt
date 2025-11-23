@@ -11,7 +11,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 fun BottomNavBar(
     navController: NavController
 ) {
-    val tabs = listOf(Screen.List, Screen.Favorites)
+    val tabs = listOf(Screen.List, Screen.Favorites, Screen.Profile)
     
     NavigationBar {
         val backStackEntry by navController.currentBackStackEntryAsState()

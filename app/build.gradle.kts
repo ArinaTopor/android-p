@@ -47,6 +47,8 @@ android {
 }
 
 dependencies {
+    implementation(project(":data"))
+    implementation(project(":profile"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

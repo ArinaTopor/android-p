@@ -1,9 +1,7 @@
 package com.example.app.screens
 
-import android.app.DownloadManager
 import android.content.Context
 import android.net.Uri
-import android.os.Environment
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -23,7 +21,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
-import com.example.app.viewmodels.ProfileViewModel
+import com.example.profile.viewmodels.ProfileViewModel
+import com.example.profile.utils.ResumeDownloader
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -97,25 +96,11 @@ fun ProfileScreen(
 
             Button(
                 enabled = profile.resumeUrl.isNotEmpty(),
-                onClick = { downloadResume(context, profile.resumeUrl) }
+                onClick = { ResumeDownloader.download(context, profile.resumeUrl) }
             ) {
                 Text("Резюме")
             }
         }
-    }
-}
-
-private fun downloadResume(context: Context, url: String) {
-    try {
-        val request = DownloadManager.Request(Uri.parse(url))
-            .setTitle("Резюме")
-            .setDescription("Загрузка документа")
-            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            .setAllowedOverMetered(true)
-            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "resume.pdf")
-        val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-        dm.enqueue(request)
-    } catch (_: Exception) {
     }
 }
 

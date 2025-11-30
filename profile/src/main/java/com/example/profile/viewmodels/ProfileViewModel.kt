@@ -1,9 +1,9 @@
-package com.example.app.viewmodels
+package com.example.profile.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.app.data.repository.ProfileRepository
-import com.example.app.data.repository.UserProfile
+import com.example.profile.repository.ProfileRepository
+import com.example.profile.repository.UserProfile
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -25,5 +25,4 @@ class ProfileViewModel @Inject constructor(
         }
     }
 }
-
 

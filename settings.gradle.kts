@@ -21,4 +21,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "app"
 include(":app")
+include(":data")
+include(":profile")
  

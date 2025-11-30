@@ -1,4 +1,4 @@
-package com.example.app.data.repository
+package com.example.profile.repository
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
@@ -50,5 +50,4 @@ class ProfileRepository @Inject constructor(
         }
     }
 }
-
 

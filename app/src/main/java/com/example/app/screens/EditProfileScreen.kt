@@ -1,16 +1,11 @@
 package com.example.app.screens
 
 import android.Manifest
-import android.app.AlarmManager
-import android.app.PendingIntent
-import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
-import android.os.Environment
-import android.provider.MediaStore
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -32,19 +27,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AddAPhoto
 import androidx.compose.material.icons.outlined.AccessTime
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.app.TimePickerDialog
-import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.app.receivers.PairNotificationReceiver
-import com.example.app.viewmodels.ProfileViewModel
-import com.example.app.data.repository.UserProfile
-import java.io.File
+import com.example.profile.viewmodels.ProfileViewModel
+import com.example.profile.repository.UserProfile
+import com.example.profile.utils.TimeValidator
+import com.example.profile.utils.ImageUriHelper
+import com.example.profile.domain.NotificationScheduler
+import com.example.app.MainActivity
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -77,19 +71,27 @@ fun EditProfileScreen(
         )
     }
     var timeError by remember { mutableStateOf<String?>(null) }
+    
+    val notificationScheduler = remember {
+        NotificationScheduler(
+            context = context,
+            receiverClass = PairNotificationReceiver::class.java,
+            mainActivityClass = MainActivity::class.java
+        )
+    }
 
     fun validateTime(time: String, showError: Boolean = true): Boolean {
-        if (time.isEmpty()) {
-            if (showError) timeError = "Поле не заполнено"
-            return false
+        val result = TimeValidator.validate(time)
+        return when (result) {
+            is TimeValidator.ValidationResult.Success -> {
+                if (showError) timeError = null
+                true
+            }
+            is TimeValidator.ValidationResult.Error -> {
+                if (showError) timeError = result.message
+                false
+            }
         }
-        val pattern = Regex("^([0-1][0-9]|2[0-3]):[0-5][0-9]$")
-        if (!pattern.matches(time)) {
-            if (showError) timeError = "Неверный формат времени. Используйте HH:mm"
-            return false
-        }
-        if (showError) timeError = null
-        return true
     }
 
     LaunchedEffect(current) {
@@ -138,7 +140,7 @@ fun EditProfileScreen(
     ) {}
 
     LaunchedEffect(Unit) {
-        createNotificationChannel(context)
+        notificationScheduler.createNotificationChannel()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(
                     context,
@@ -185,7 +187,7 @@ fun EditProfileScreen(
             if (source == "gallery") {
                 galleryPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
             } else {
-                val uri = createImageUri(context)
+                val uri = ImageUriHelper.createImageUri(context, context.packageName)
                 pendingCameraUri = uri
                 if (uri != null) takePicture.launch(uri)
             }
@@ -225,99 +227,6 @@ fun EditProfileScreen(
         timePickerDialog.show()
     }
 
-    fun cancelNotification() {
-        try {
-            val intent = Intent(context, PairNotificationReceiver::class.java)
-            val pendingIntent = PendingIntent.getBroadcast(
-                context,
-                0,
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-            alarmManager.cancel(pendingIntent)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    fun scheduleNotification(userName: String, time: String) {
-        try {
-            val notificationManager = NotificationManagerCompat.from(context)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                if (ContextCompat.checkSelfPermission(
-                        context,
-                        Manifest.permission.POST_NOTIFICATIONS
-                    ) != PackageManager.PERMISSION_GRANTED
-                ) {
-                    return
-                }
-            }
-
-            if (!notificationManager.areNotificationsEnabled()) {
-                return
-            }
-
-            cancelNotification()
-
-            val (hours, minutes) = time.split(":").map { it.toInt() }
-            val calendar = Calendar.getInstance().apply {
-                set(Calendar.HOUR_OF_DAY, hours)
-                set(Calendar.MINUTE, minutes)
-                set(Calendar.SECOND, 0)
-                set(Calendar.MILLISECOND, 0)
-                if (timeInMillis <= System.currentTimeMillis()) {
-                    add(Calendar.DAY_OF_MONTH, 1)
-                }
-            }
-
-            val intent = Intent(context, PairNotificationReceiver::class.java).apply {
-                putExtra(PairNotificationReceiver.EXTRA_USER_NAME, userName)
-            }
-
-            val pendingIntent = PendingIntent.getBroadcast(
-                context,
-                0,
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-
-            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-            val triggerTime = calendar.timeInMillis
-
-            if (alarmManager == null) {
-                return
-            }
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                val showIntent = Intent(context, com.example.app.MainActivity::class.java).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                }
-                val showPendingIntent = PendingIntent.getActivity(
-                    context,
-                    1,
-                    showIntent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                )
-                val alarmClockInfo = AlarmManager.AlarmClockInfo(triggerTime, showPendingIntent)
-                alarmManager.setAlarmClock(alarmClockInfo, pendingIntent)
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                alarmManager.setExactAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP,
-                    triggerTime,
-                    pendingIntent
-                )
-            } else {
-                alarmManager.setExact(
-                    AlarmManager.RTC_WAKEUP,
-                    triggerTime,
-                    pendingIntent
-                )
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
 
     val isFormValid = remember(favoritePairTime.text, timeError) {
         if (favoritePairTime.text.isEmpty()) {
@@ -355,9 +264,9 @@ fun EditProfileScreen(
                             viewModel.updateProfile(profile)
 
                             if (timeText.isNotEmpty() && fullName.text.trim().isNotEmpty()) {
-                                scheduleNotification(fullName.text.trim(), timeText)
+                                notificationScheduler.scheduleNotification(fullName.text.trim(), timeText)
                             } else if (timeText.isEmpty()) {
-                                cancelNotification()
+                                notificationScheduler.cancelNotification()
                             }
 
                             navController.popBackStack()
@@ -482,41 +391,4 @@ fun EditProfileScreen(
     }
 }
 
-private fun createImageUri(context: android.content.Context): Uri? {
-    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        val contentValues = ContentValues().apply {
-            put(MediaStore.Images.Media.DISPLAY_NAME, "avatar_${System.currentTimeMillis()}.jpg")
-            put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
-            put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/AndroidP")
-        }
-        context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-    } else {
-        val imagesDir = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
-        val imageFile = File(imagesDir, "avatar_${System.currentTimeMillis()}.jpg")
-        FileProvider.getUriForFile(context, context.packageName + ".fileprovider", imageFile)
-    }
-}
-
-private fun createNotificationChannel(context: Context) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        val notificationManager =
-            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val existingChannel =
-            notificationManager.getNotificationChannel(PairNotificationReceiver.CHANNEL_ID)
-        if (existingChannel != null) {
-            return
-        }
-
-        val channel = NotificationChannel(
-            PairNotificationReceiver.CHANNEL_ID,
-            "Уведомления о парах",
-            NotificationManager.IMPORTANCE_HIGH
-        ).apply {
-            description = "Уведомления о начале любимой пары"
-            enableLights(true)
-            enableVibration(true)
-        }
-        notificationManager.createNotificationChannel(channel)
-    }
-}
 

@@ -28,3 +28,7 @@ replay_pid*
 /build
 /.idea
 /.gradle
+
+# Build directories for all modules
+**/build/
+build/
